@@ -37,6 +37,7 @@ namespace IsThePlcON
         static async Task Main(string[] args)
         {
             Console.WriteLine("=== IsThePlcON ===");
+            Console.WriteLine("Created by Joaquin Navarro for joaquinlab.com");
             Console.WriteLine("Instructions:");
             Console.WriteLine("1. Use the arrow keys to navigate the menu.");
             Console.WriteLine("2. Press Enter to select an option.");
