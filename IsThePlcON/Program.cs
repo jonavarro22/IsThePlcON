@@ -17,6 +17,14 @@ namespace IsThePlcON
         public int Slot { get; set; } = 0;            // For ControlLogix, CPU often in slot 0
         public string WatchdogTag { get; set; } = "MyWatchdog";
         public int Timeout { get; set; } = 10000;     // Default timeout in milliseconds
+        public string TagType { get; set; } = PlcTagType.Integer32; // Use the string enum
+    }
+
+    public static class PlcTagType
+    {
+        public const string Integer32 = "Integer32";
+        public const string Float32 = "Float32";
+        public const string String = "String";
     }
 
     class Program
@@ -88,8 +96,8 @@ namespace IsThePlcON
                     // 3) Try to read the watchdog tag from the PLC
                     try
                     {
-                        int watchdogValue = await ReadWatchdogTag(
-                            config.PlcIpAddress, config.Channel, config.Slot, config.WatchdogTag, config.Timeout
+                        string watchdogValue = await ReadWatchdogTag(
+                            config.PlcIpAddress, config.Channel, config.Slot, config.WatchdogTag, config.Timeout, config.TagType
                         );
                         Console.WriteLine($"Watchdog Tag '{config.WatchdogTag}' Value: {watchdogValue}");
                     }
@@ -213,11 +221,53 @@ namespace IsThePlcON
             if (!string.IsNullOrEmpty(tag))
                 config.WatchdogTag = tag;
 
+            // Select the PLC Tag Type
+            config.TagType = SelectTagType(config.TagType);
+
             // Save to config.json
             SaveConfig(config);
 
             return config;
         }
+
+        private static string SelectTagType(string currentTagType)
+        {
+            string[] tagTypes = { PlcTagType.Integer32, PlcTagType.Float32, PlcTagType.String };
+            int selectedIndex = Array.IndexOf(tagTypes, currentTagType);
+            if (selectedIndex == -1) selectedIndex = 0;
+
+            ConsoleKey key;
+            do
+            {
+                Console.Clear();
+                Console.WriteLine("Select the PLC Tag Type:");
+                for (int i = 0; i < tagTypes.Length; i++)
+                {
+                    if (i == selectedIndex)
+                    {
+                        Console.WriteLine($"> {tagTypes[i]}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"  {tagTypes[i]}");
+                    }
+                }
+
+                key = Console.ReadKey(true).Key;
+
+                if (key == ConsoleKey.UpArrow)
+                {
+                    selectedIndex = (selectedIndex == 0) ? tagTypes.Length - 1 : selectedIndex - 1;
+                }
+                else if (key == ConsoleKey.DownArrow)
+                {
+                    selectedIndex = (selectedIndex == tagTypes.Length - 1) ? 0 : selectedIndex + 1;
+                }
+            } while (key != ConsoleKey.Enter);
+
+            return tagTypes[selectedIndex];
+        }
+
 
         /// <summary>
         /// Loads the config from config.json if it exists, otherwise prompts user for IP/Tag 
@@ -345,7 +395,7 @@ namespace IsThePlcON
         /// <summary>
         /// Reads a simple integer (e.g., DINT) watchdog tag from the PLC using libplctag.
         /// </summary>
-        private static async Task<int> ReadWatchdogTag(string ip, int cpuChannel, int cpuSlot, string tagName, int timeout)
+        private static async Task<string> ReadWatchdogTag(string ip, int cpuChannel, int cpuSlot, string tagName, int timeout, string tagType)
         {
             var tag = new Tag()
             {
@@ -362,8 +412,17 @@ namespace IsThePlcON
                 if (await Task.WhenAny(readTask, Task.Delay(timeout)) == readTask)
                 {
                     // Read completed within timeout
-                    int value = tag.GetInt32(0);
-                    return value;
+                    switch (tagType)
+                    {
+                        case PlcTagType.Integer32:
+                            return tag.GetInt32(0).ToString();
+                        case PlcTagType.Float32:
+                            return tag.GetFloat32(0).ToString();
+                        case PlcTagType.String:
+                            return tag.GetString(0);
+                        default:
+                            return "Unknown tag type";
+                    }
                 }
                 else
                 {
